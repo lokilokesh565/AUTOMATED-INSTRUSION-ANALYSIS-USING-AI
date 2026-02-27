@@ -1,4 +1,6 @@
+// Landing Page for IDS
 import { useNavigate } from "react-router-dom";
+
 import {
     Shield,
     ShieldCheck,
