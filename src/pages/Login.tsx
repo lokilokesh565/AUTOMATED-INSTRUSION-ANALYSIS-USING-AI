@@ -1,27 +1,55 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { Shield, Eye, EyeOff } from "lucide-react";
+import { Shield, Eye, EyeOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { toast } from "sonner";
+
+const loginSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(1, "Password is required"),
+});
+
+type LoginFormValues = z.infer<typeof loginSchema>;
 
 const Login = () => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
-  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email || !password) {
-      setError("Please fill in all fields");
-      return;
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: "",
+      password: "",
     }
-    login(email, password);
-    navigate("/dashboard");
+  });
+
+  const onSubmit = async (values: LoginFormValues) => {
+    setIsLoading(true);
+    try {
+      const success = login(values.email, values.password);
+      if (success) {
+        toast.success("Welcome back!");
+        navigate("/dashboard");
+      } else {
+        toast.error("Invalid email or password");
+      }
+    } catch (error) {
+      toast.error("Something went wrong. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -35,20 +63,17 @@ const Login = () => {
           <p className="text-muted-foreground mt-1">Automated Intrusion Analysis Using AI Dashboard</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="card-cyber p-8 space-y-5 animate-scale-in">
-          {error && (
-            <div className="p-3 rounded-lg bg-danger/10 text-danger text-sm">{error}</div>
-          )}
-
+        <form onSubmit={handleSubmit(onSubmit)} className="card-cyber p-8 space-y-5 animate-scale-in">
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input
               id="email"
               type="email"
               placeholder="admin@ids.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              {...register("email")}
+              className={errors.email ? "border-destructive focus-visible:ring-destructive" : ""}
             />
+            {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
           </div>
 
           <div className="space-y-2">
@@ -58,8 +83,8 @@ const Login = () => {
                 id="password"
                 type={showPw ? "text" : "password"}
                 placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                {...register("password")}
+                className={errors.password ? "border-destructive focus-visible:ring-destructive" : ""}
               />
               <button
                 type="button"
@@ -69,9 +94,11 @@ const Login = () => {
                 {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
+            {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
           </div>
 
-          <Button type="submit" className="w-full">
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
             Sign In
           </Button>
 
@@ -88,3 +115,4 @@ const Login = () => {
 };
 
 export default Login;
+

@@ -22,14 +22,35 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return saved ? JSON.parse(saved) : null;
   });
 
-  const login = (email: string, _password: string) => {
-    const u = { email, name: email.split("@")[0] };
-    setUser(u);
-    localStorage.setItem("ids_user", JSON.stringify(u));
-    return true;
+  const getRegisteredUsers = (): any[] => {
+    const saved = localStorage.getItem("ids_registered_users");
+    return saved ? JSON.parse(saved) : [];
   };
 
-  const register = (name: string, email: string, _password: string) => {
+  const login = (email: string, password: string) => {
+    const users = getRegisteredUsers();
+    const foundUser = users.find((u) => u.email === email && u.password === password);
+
+    if (foundUser) {
+      const u = { email: foundUser.email, name: foundUser.name };
+      setUser(u);
+      localStorage.setItem("ids_user", JSON.stringify(u));
+      return true;
+    }
+    return false;
+  };
+
+  const register = (name: string, email: string, password: string) => {
+    const users = getRegisteredUsers();
+    if (users.some((u) => u.email === email)) {
+      return false; // User already exists
+    }
+
+    const newUser = { name, email, password };
+    const updatedUsers = [...users, newUser];
+    localStorage.setItem("ids_registered_users", JSON.stringify(updatedUsers));
+
+    // Automatically log in after registration
     const u = { email, name };
     setUser(u);
     localStorage.setItem("ids_user", JSON.stringify(u));
@@ -47,3 +68,4 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     </AuthContext.Provider>
   );
 };
+

@@ -1,32 +1,62 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { ShieldPlus, Eye, EyeOff } from "lucide-react";
+import { ShieldPlus, Eye, EyeOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { toast } from "sonner";
+
+const registerSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  confirmPassword: z.string()
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
+
+type RegisterFormValues = z.infer<typeof registerSchema>;
 
 const Register = () => {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
-  const [error, setError] = useState("");
-  const { register } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+  const { register: registerUser } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name || !email || !password) {
-      setError("Please fill in all fields");
-      return;
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<RegisterFormValues>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: {
+      name: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
     }
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters");
-      return;
+  });
+
+  const onSubmit = async (values: RegisterFormValues) => {
+    setIsLoading(true);
+    try {
+      const success = registerUser(values.name, values.email, values.password);
+      if (success) {
+        toast.success("Account created successfully!");
+        navigate("/dashboard");
+      } else {
+        toast.error("User with this email already exists");
+      }
+    } catch (error) {
+      toast.error("Something went wrong. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
-    register(name, email, password);
-    navigate("/dashboard");
   };
 
   return (
@@ -40,19 +70,28 @@ const Register = () => {
           <p className="text-muted-foreground mt-1">Join the IDS Platform</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="card-cyber p-8 space-y-5 animate-scale-in">
-          {error && (
-            <div className="p-3 rounded-lg bg-danger/10 text-danger text-sm">{error}</div>
-          )}
-
+        <form onSubmit={handleSubmit(onSubmit)} className="card-cyber p-8 space-y-5 animate-scale-in">
           <div className="space-y-2">
             <Label htmlFor="name">Full Name</Label>
-            <Input id="name" placeholder="John Doe" value={name} onChange={(e) => setName(e.target.value)} />
+            <Input
+              id="name"
+              placeholder="John Doe"
+              {...register("name")}
+              className={errors.name ? "border-destructive focus-visible:ring-destructive" : ""}
+            />
+            {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" placeholder="admin@ids.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <Input
+              id="email"
+              type="email"
+              placeholder="admin@ids.com"
+              {...register("email")}
+              className={errors.email ? "border-destructive focus-visible:ring-destructive" : ""}
+            />
+            {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
           </div>
 
           <div className="space-y-2">
@@ -62,8 +101,8 @@ const Register = () => {
                 id="password"
                 type={showPw ? "text" : "password"}
                 placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                {...register("password")}
+                className={errors.password ? "border-destructive focus-visible:ring-destructive" : ""}
               />
               <button
                 type="button"
@@ -73,9 +112,23 @@ const Register = () => {
                 {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
+            {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
           </div>
 
-          <Button type="submit" className="w-full">
+          <div className="space-y-2">
+            <Label htmlFor="confirmPassword">Confirm Password</Label>
+            <Input
+              id="confirmPassword"
+              type={showPw ? "text" : "password"}
+              placeholder="••••••••"
+              {...register("confirmPassword")}
+              className={errors.confirmPassword ? "border-destructive focus-visible:ring-destructive" : ""}
+            />
+            {errors.confirmPassword && <p className="text-xs text-destructive">{errors.confirmPassword.message}</p>}
+          </div>
+
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
             Create Account
           </Button>
 
@@ -92,3 +145,4 @@ const Register = () => {
 };
 
 export default Register;
+
