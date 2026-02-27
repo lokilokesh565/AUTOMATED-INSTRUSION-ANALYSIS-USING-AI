@@ -31,14 +31,14 @@ const App = () => (
 
         <AuthProvider>
           <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/landing" element={<Landing />} />
+            <Route path="/" element={<Landing />} />
             <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
             <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
-            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
+
 
       </BrowserRouter>
     </TooltipProvider>
