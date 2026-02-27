@@ -108,12 +108,19 @@ const Dashboard = () => {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground hidden sm:block">
-              Welcome, <span className="font-medium text-foreground">{user?.name}</span>
+              Welcome, <span className="font-medium text-foreground">{user?.name || "Guest"}</span>
             </span>
-            <Button variant="ghost" size="sm" onClick={handleLogout}>
-              <LogOut className="w-4 h-4 mr-1" /> Logout
-            </Button>
+            {user ? (
+              <Button variant="ghost" size="sm" onClick={handleLogout}>
+                <LogOut className="w-4 h-4 mr-1" /> Logout
+              </Button>
+            ) : (
+              <Button variant="ghost" size="sm" onClick={() => navigate("/login")}>
+                <Shield className="w-4 h-4 mr-1" /> Sign In
+              </Button>
+            )}
           </div>
+
         </div>
       </header>
 
