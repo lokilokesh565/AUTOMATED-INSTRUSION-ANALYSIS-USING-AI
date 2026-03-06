@@ -38,12 +38,12 @@ const Login = () => {
   const onSubmit = async (values: LoginFormValues) => {
     setIsLoading(true);
     try {
-      const success = login(values.email, values.password);
-      if (success) {
+      const { error } = await login(values.email, values.password);
+      if (!error) {
         toast.success("Welcome back!");
         navigate("/dashboard");
       } else {
-        toast.error("Invalid email or password");
+        toast.error(error);
       }
     } catch (error) {
       toast.error("Something went wrong. Please try again.");

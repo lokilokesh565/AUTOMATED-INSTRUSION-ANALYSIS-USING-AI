@@ -14,7 +14,10 @@ import AttackDistribution from "@/components/graphs/AttackDistribution";
 import SHAPSummary from "@/components/graphs/SHAPSummary";
 import SHAPFeatureImportance from "@/components/graphs/SHAPFeatureImportance";
 import LIMEExplanation from "@/components/graphs/LIMEExplanation";
+import ScanHistory from "@/components/ScanHistory";
 import { analyzeUploadedData, type AnalysisResult } from "@/data/analyzeData";
+import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
 
 const scanStages = [
   "Loading ML models (MLP, LSTM, XGBoost, Hybrid)...",
@@ -39,6 +42,7 @@ const Dashboard = () => {
   const [uploadedData, setUploadedData] = useState<Record<string, string | number>[] | null>(null);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [refreshHistory, setRefreshHistory] = useState(0);
 
   const handleDataLoaded = (data: Record<string, string | number>[], fileName: string) => {
     setUploadedData(data);
@@ -54,13 +58,20 @@ const Dashboard = () => {
     setAnalysisResult(null);
   };
 
+  const handleSelectHistoricalScan = (result: AnalysisResult) => {
+    setAnalysisResult(result);
+    setShowResults(true);
+    // Scroll to results
+    window.scrollTo({ top: 600, behavior: 'smooth' });
+  };
+
   const handleScan = useCallback(() => {
     setScanning(true);
     setShowResults(false);
     setProgress(0);
 
     let currentStep = 0;
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
       currentStep++;
       const p = Math.min(Math.round((currentStep / scanStages.length) * 100), 100);
       setProgress(p);
@@ -68,16 +79,43 @@ const Dashboard = () => {
 
       if (currentStep >= scanStages.length) {
         clearInterval(interval);
+
+        // Derive all graph data from uploaded dataset (or null → graphs use static defaults)
+        const result = uploadedData ? analyzeUploadedData(uploadedData) : null;
+
+        if (result && user) {
+          try {
+            const { error } = await supabase.from('scans').insert({
+              user_id: user.id,
+              file_name: uploadedFileName || 'unknown.csv',
+              total_rows: result.totalRows,
+              attack_count: result.attackCount,
+              normal_count: result.normalCount,
+              best_model_name: result.bestModelName,
+              best_model_accuracy: result.bestModelAccuracy,
+              results: result
+            });
+
+            if (error) {
+              console.error('Error saving scan:', error);
+              toast.error(`Save failed: ${error.message}`);
+            } else {
+              toast.success('Scan results saved to database');
+              setRefreshHistory(prev => prev + 1);
+            }
+          } catch (e) {
+            console.error('Failed to save scan:', e);
+          }
+        }
+
         setTimeout(() => {
-          // Derive all graph data from uploaded dataset (or null → graphs use static defaults)
-          const result = uploadedData ? analyzeUploadedData(uploadedData) : null;
           setAnalysisResult(result);
           setScanning(false);
           setShowResults(true);
         }, 600);
       }
     }, 800);
-  }, [uploadedData]);
+  }, [uploadedData, user, uploadedFileName]);
 
   const handleLogout = () => {
     logout();
@@ -189,6 +227,14 @@ const Dashboard = () => {
               ? `Ready to scan ${uploadedData.length} records from ${uploadedFileName}`
               : "Please upload a CSV dataset above to begin AI analysis"}
           </p>
+        </div>
+
+        {/* History Section */}
+        <div className="mb-10">
+          <ScanHistory
+            onSelectScan={handleSelectHistoricalScan}
+            refreshTrigger={refreshHistory}
+          />
         </div>
 
         {/* Results Section */}

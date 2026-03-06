@@ -45,12 +45,17 @@ const Register = () => {
   const onSubmit = async (values: RegisterFormValues) => {
     setIsLoading(true);
     try {
-      const success = registerUser(values.name, values.email, values.password);
-      if (success) {
-        toast.success("Account created successfully!");
-        navigate("/dashboard");
+      const { error, session } = await registerUser(values.name, values.email, values.password);
+      if (!error) {
+        if (session) {
+          toast.success("Account created successfully!");
+          navigate("/dashboard");
+        } else {
+          toast.success("Account created! Please check your email for a confirmation link.");
+          navigate("/login");
+        }
       } else {
-        toast.error("User with this email already exists");
+        toast.error(error);
       }
     } catch (error) {
       toast.error("Something went wrong. Please try again.");

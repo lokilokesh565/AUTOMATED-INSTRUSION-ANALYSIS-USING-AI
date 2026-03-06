@@ -1,11 +1,14 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, ReactNode, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
+import { User } from "@supabase/supabase-js";
 
 interface AuthContextType {
   isAuthenticated: boolean;
-  user: { email: string; name: string } | null;
-  login: (email: string, password: string) => boolean;
-  register: (name: string, email: string, password: string) => boolean;
-  logout: () => void;
+  user: { email: string; name: string; id: string } | null;
+  login: (email: string, password: string) => Promise<{ error: string | null }>;
+  register: (name: string, email: string, password: string) => Promise<{ error: string | null; session?: any }>;
+  logout: () => Promise<void>;
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -17,54 +20,70 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<{ email: string; name: string } | null>(() => {
-    const saved = localStorage.getItem("ids_user");
-    return saved ? JSON.parse(saved) : null;
-  });
+  const [user, setUser] = useState<{ email: string; name: string; id: string } | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const getRegisteredUsers = (): any[] => {
-    const saved = localStorage.getItem("ids_registered_users");
-    return saved ? JSON.parse(saved) : [];
+  useEffect(() => {
+    // Check active sessions and sets the user
+    const setData = async () => {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (session?.user) {
+        setUser({
+          id: session.user.id,
+          email: session.user.email || "",
+          name: session.user.user_metadata?.name || session.user.email?.split("@")[0] || "User",
+        });
+      }
+      setLoading(false);
+    };
+
+    setData();
+
+    // Listen for changes on auth state (logged in, signed out, etc.)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUser({
+          id: session.user.id,
+          email: session.user.email || "",
+          name: session.user.user_metadata?.name || session.user.email?.split("@")[0] || "User",
+        });
+      } else {
+        setUser(null);
+      }
+      setLoading(false);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const login = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return { error: error.message };
+    return { error: null };
   };
 
-  const login = (email: string, password: string) => {
-    const users = getRegisteredUsers();
-    const foundUser = users.find((u) => u.email === email && u.password === password);
-
-    if (foundUser) {
-      const u = { email: foundUser.email, name: foundUser.name };
-      setUser(u);
-      localStorage.setItem("ids_user", JSON.stringify(u));
-      return true;
-    }
-    return false;
+  const register = async (name: string, email: string, password: string) => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { name },
+      },
+    });
+    if (error) return { error: error.message };
+    return { error: null, session: data.session };
   };
 
-  const register = (name: string, email: string, password: string) => {
-    const users = getRegisteredUsers();
-    if (users.some((u) => u.email === email)) {
-      return false; // User already exists
-    }
-
-    const newUser = { name, email, password };
-    const updatedUsers = [...users, newUser];
-    localStorage.setItem("ids_registered_users", JSON.stringify(updatedUsers));
-
-    // Automatically log in after registration
-    const u = { email, name };
-    setUser(u);
-    localStorage.setItem("ids_user", JSON.stringify(u));
-    return true;
-  };
-
-  const logout = () => {
+  const logout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
-    localStorage.removeItem("ids_user");
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated: !!user, user, login, register, logout }}>
-      {children}
+    <AuthContext.Provider value={{ isAuthenticated: !!user, user, login, register, logout, loading }}>
+      {!loading && children}
     </AuthContext.Provider>
   );
 };
